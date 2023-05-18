@@ -41,7 +41,7 @@ class Vector3{
         float x;
         float y;
         float z;
-        Vector3(float _x, float _y, float _z) : x(_x), y(_y), z(_z) {}
+        Vector3(float _x, float _y, float _z) : x(_x), y(_y), z(_z){}
 
         float mag(){
             return sqrt(pow(x,2) + pow(y,2) + pow(z,2));
@@ -66,6 +66,12 @@ class Vector3{
 
         Vector3 operator/(const float n){
             return Vector3(x / n, y / n, z / n);
+        }
+
+        Vector3 operator+=(const Vector3& v){
+            x += v.x;
+            y += v.y;
+            z += v.z;
         }
 
         float dot(const Vector3& v){
@@ -195,19 +201,69 @@ class Tri{
     public:
         std::vector<Vector3> points;
         SDL_Color color;
+        bool flippedNormal = false;
 
-        Tri(std::vector<Vector3> _points, SDL_Color _color) : points(_points), color(_color) {}
+        Tri(std::vector<Vector3> _points, SDL_Color _color) : points(_points), color(_color){}
 
         Vector3 normal(){
-            return (points[1] - points[0]).cross(points[2] - points[0]).normalize();
+            if (!flippedNormal){
+                return (points[1] - points[0]).cross(points[2] - points[0]).normalize();
+            }else{if(flippedNormal){
+                return (points[0] - points[1]).cross(points[0] - points[2]).normalize();
+            }}
+            
         }
 
         Vector3 centroid(){
             return (points[0] + points[1] + points[2]) / 3;
         }
+
+        void draw(SDL_Window* win, SDL_Renderer* ren, Camera& camera){
+            std::vector<Vector2> pointConv(3, Vector2(0, 0));
+            for(int i=0;i<points.size();i++){
+                pointConv[i] = camera.project(points[i], win);
+            }
+            std::vector<SDL_Vertex> pointConv2(3, SDL_Vertex{});
+            for(int i=0;i<pointConv.size();i++){
+                pointConv2[i] = {SDL_FPoint{pointConv[i].x, pointConv[i].y}, color, SDL_FPoint{0}};
+            }
+            SDL_RenderGeometry(ren, nullptr, pointConv2.data(), pointConv2.size(), nullptr, 0);
+        }
 };
 
+class Object{
+    public:
+        std::vector<Vector3> verts;
+        std::vector<SDL_Color> triColors;
+        std::vector<Tri> tris;
 
+        Object(std::vector<Vector3> _verts, std::vector<SDL_Color> _triColors) : verts(_verts), triColors(_triColors){
+            createTris();
+            for (Tri t: tris){
+                if(t.normal().dot(t.centroid() - centroid()) <= 0){
+                    t.flippedNormal = !t.flippedNormal;
+                }
+            }
+        }
+
+        std::vector<Tri> createTris(){
+            std::vector<Tri> objectTris(floor(verts.size()/3), Tri({Vector3(0, 0, 0)}, {}));
+            for(int i=0;i<objectTris.size();i++){
+                objectTris[i] = Tri({verts[3*i], verts[3*i+1], verts[3*i+2]}, triColors[i]);
+            }
+            tris = objectTris;
+        }
+
+        Vector3 centroid(){
+            Vector3 centroid = Vector3(0, 0, 0);
+            for(Tri t : tris){
+                centroid += t.centroid();
+            }
+            return centroid / tris.size();
+        }
+
+
+};
 
 int main(int argc, char* argv[]){
     SDL_Init(SDL_INIT_EVERYTHING);
