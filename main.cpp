@@ -220,15 +220,17 @@ class Tri{
         }
 
         void draw(SDL_Window* win, SDL_Renderer* ren, Camera& camera){
-            std::vector<Vector2> pointConv(3, Vector2(0, 0));
-            for(int i=0;i<points.size();i++){
-                pointConv[i] = camera.project(points[i], win);
+            if(!camera.tryCulling(points, normal()){
+                std::vector<Vector2> pointConv(3, Vector2(0, 0));
+                for(int i=0;i<points.size();i++){
+                    pointConv[i] = camera.project(points[i], win);
+                }
+                std::vector<SDL_Vertex> pointConv2(3, SDL_Vertex{});
+                for(int i=0;i<pointConv.size();i++){
+                    pointConv2[i] = {SDL_FPoint{pointConv[i].x, pointConv[i].y}, color, SDL_FPoint{0}};
+                }
+                SDL_RenderGeometry(ren, nullptr, pointConv2.data(), pointConv2.size(), nullptr, 0);
             }
-            std::vector<SDL_Vertex> pointConv2(3, SDL_Vertex{});
-            for(int i=0;i<pointConv.size();i++){
-                pointConv2[i] = {SDL_FPoint{pointConv[i].x, pointConv[i].y}, color, SDL_FPoint{0}};
-            }
-            SDL_RenderGeometry(ren, nullptr, pointConv2.data(), pointConv2.size(), nullptr, 0);
         }
 };
 
