@@ -348,7 +348,6 @@ int main(int argc, char* argv[]){
     SDL_Window* window = SDL_CreateWindow("main", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH, HEIGHT, SDL_WINDOW_ALLOW_HIGHDPI);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
-    std::cout << sqrt(2.0);
 
     if(NULL == window){
         std::cout << "Could not create window: " << SDL_GetError() << std::endl;
