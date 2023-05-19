@@ -1,6 +1,7 @@
 #include <iostream>
 #include <SDL2/SDL.h>
 #include <vector>
+#include <algorithm>
 #include <cmath>
 
 const float PI = 3.141592653;
@@ -239,6 +240,10 @@ class Object{
 
         Object(std::vector<Vector3> _verts, std::vector<SDL_Color> _triColors) : verts(_verts), triColors(_triColors){
             createTris();
+            checkNormals();
+        }
+
+        void checkNormals(){
             for (Tri t: tris){
                 if(t.normal().dot(t.centroid() - centroid()) <= 0){
                     t.flippedNormal = !t.flippedNormal;
@@ -261,6 +266,79 @@ class Object{
             }
             return centroid / tris.size();
         }
+
+        std::vector<float> bBox(){
+            std::vector<float> rX(tris.size()*3, 0);
+            std::vector<float> rY(tris.size()*3, 0);
+            std::vector<float> rZ(tris.size()*3, 0);
+            for(int t=0;t<tris.size();t++){
+                for(int p=0;p<tris[t].points.size();p++){
+                    rX[t*3 + p] = tris[t].points[p].x;
+                    rY[t*3 + p] = tris[t].points[p].y;
+                    rZ[t*3 + p] = tris[t].points[p].z;
+                }
+            }
+            std::vector<float> bb = {*min_element(rX.begin(), rX.end()), *max_element(rX.begin(), rX.end()),
+                                     *min_element(rY.begin(), rY.end()), *max_element(rY.begin(), rY.end()),
+                                     *min_element(rZ.begin(), rZ.end()), *max_element(rZ.begin(), rZ.end())};
+            
+            return bb;
+        }
+
+        void move(const Vector3& moveVector){
+            for(Tri t : tris){
+                for(int p=0;p<t.points.size();p++){
+                    t.points[p] += moveVector;
+                }
+            }
+            checkNormals();
+        }
+
+        void rotate(const Vector3& rotationVector){
+            std::vector<std::vector<float>> rotationZ = {{cos(rotationVector.z), -1*sin(rotationVector.z), 0},
+                                                         {sin(rotationVector.z), cos(rotationVector.z), 0},
+                                                         {0, 0, 1}};
+            std::vector<std::vector<float>> rotationY = {{cos(rotationVector.y), 0, sin(rotationVector.y)},
+                                                         {0, 1, 0},
+                                                         {-1*sin(rotationVector.y), 0, cos(rotationVector.y)}};
+            std::vector<std::vector<float>> rotationX = {{1, 0, 0},
+                                                         {0, cos(rotationVector.x), -1*sin(rotationVector.x)},
+                                                         {0, sin(rotationVector.x), cos(rotationVector.x)}};
+            
+            std::vector<std::vector<float>> rotationMatrix = matrixMultiply(matrixMultiply(rotationZ, rotationY), rotationX);
+
+            for(Tri t: tris){
+                for(int p=0;p<t.points.size();p++){
+                    Vector3 relativePoint = t.points[p] - centroid();
+                    std::vector<std::vector<float>> rotatedPoint = matrixMultiply(rotationMatrix, {{relativePoint.x},{relativePoint.y},{relativePoint.z}});
+                    t.points[p] = Vector3(rotatedPoint[0][0], rotatedPoint[1][0], rotatedPoint[2][0]);
+                }
+            }
+            checkNormals();
+        }
+
+
+};
+class Scene{
+    public:
+        std::vector<Object> objects;
+        int numTris = 0;
+        std::vector<Tri> sceneTris;
+        Scene(std::vector<Object> _objects = {}) : objects(_objects){
+            for(Object o : objects){
+                for (Tri t : o.tris){
+                    numTris++;
+                }
+            }
+            std::vector<Tri> localTris(numTris, Tri({Vector3(0, 0, 0)}, {0, 0, 0}));
+            for(Object o : objects){
+                for(Tri t : o.tris){
+                    localTris.insert(localTris.end(), t);
+                }
+            }
+            sceneTris = localTris;
+        }
+
 
 
 };
