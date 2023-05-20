@@ -220,7 +220,7 @@ class Tri{
         }
 
         void draw(SDL_Window* win, SDL_Renderer* ren, Camera& camera){
-            if(!camera.tryCulling(points, normal()){
+            if(!camera.tryCulling(points, normal())){
                 std::vector<Vector2> pointConv(3, Vector2(0, 0));
                 for(int i=0;i<points.size();i++){
                     pointConv[i] = camera.project(points[i], win);
