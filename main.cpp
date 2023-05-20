@@ -7,6 +7,15 @@
 const float PI = 3.141592653;
 const int WIDTH = 1600, HEIGHT = 900;
 
+struct IndexedNum{
+    int i;
+    float f;
+};
+
+bool compareIndexedNum(IndexedNum n1, IndexedNum n2){
+    return (n1.f > n2.f);
+}
+
 std::vector<std::vector<float>> matrixMultiply(const std::vector<std::vector<float>>& matrix1,
                                                const std::vector<std::vector<float>>& matrix2) {
     int m = matrix1.size();
@@ -83,7 +92,7 @@ class Vector3{
             return Vector3((y * v.z) - (z * v.y), (z * v.x) - (x * v.z), (x * v.y) - (y * v.x));
         }
 
-        float distSquared(const Vector3& v){
+        float distSquared(Vector3 v){
             return pow(x - v.x, 2) + pow(y - v.y, 2) + pow(z - v.z, 2);
         }
 };
@@ -253,6 +262,7 @@ class Object{
             }
         }
 
+
         std::vector<Tri> createTris(){
             std::vector<Tri> objectTris(floor(verts.size()/3), Tri({Vector3(0, 0, 0)}, {}));
             for(int i=0;i<objectTris.size();i++){
@@ -326,13 +336,14 @@ class Scene{
         std::vector<Object> objects;
         int numTris = 0;
         std::vector<Tri> sceneTris;
+
         Scene(std::vector<Object> _objects = {}) : objects(_objects){
             for(Object o : objects){
                 for (Tri t : o.tris){
                     numTris++;
                 }
             }
-            std::vector<Tri> localTris(numTris, Tri({Vector3(0, 0, 0)}, {0, 0, 0}));
+            std::vector<Tri> localTris;
             for(Object o : objects){
                 for(Tri t : o.tris){
                     localTris.insert(localTris.end(), t);
@@ -341,7 +352,111 @@ class Scene{
             sceneTris = localTris;
         }
 
+        std::vector<Tri> generateZBuffer(Camera& c){
+            std::vector<IndexedNum> distanceList(sceneTris.size(), IndexedNum());
+            std::vector<Tri> zBuffer;
+            for(int i=0;i<sceneTris.size();i++){
+                IndexedNum iTri;
+                iTri.i = i; iTri.f = c.pos.distSquared(sceneTris[i].centroid());
+                distanceList[i] = iTri;
+            }
+            std::sort(distanceList.begin(), distanceList.end(), compareIndexedNum);
+            for(IndexedNum n : distanceList){
+                zBuffer.insert(zBuffer.end(), sceneTris[n.i]);
+            }
+            return zBuffer;
+        }
 
+        void render(SDL_Window* win, SDL_Renderer* ren, Camera& c){
+            for(Tri t: generateZBuffer(c)){
+                t.draw(win, ren, c);
+            }
+        }
+};
+
+class Rect: public Object{
+    public:
+        std::vector<SDL_Color> colors;
+        Vector3 pos;
+        int width, height, depth;
+
+        Rect(Vector3 _pos, int _width, int _height, int _depth, std::vector<SDL_Color> _colors) : 
+        pos(_pos), width(_width), height(_height), depth(_depth), Object({}, {}){
+            for(SDL_Color c: colors){
+                Object::triColors.insert(Object::triColors.end(), c);
+                Object::triColors.insert(Object::triColors.end(), c);
+            }
+            std::vector<Vector3> verts = {
+                Vector3(pos.x, pos.y, pos.z), Vector3(pos.x+width, pos.y, pos.z), Vector3(pos.x+width, pos.y+height, pos.z), Vector3(pos.x,pos.y,pos.z), Vector3(pos.x,pos.y+height,pos.z), Vector3(pos.x+width,pos.y+height,pos.z),
+                Vector3(pos.x, pos.y, pos.z+depth), Vector3(pos.x+width, pos.y, pos.z+depth), Vector3(pos.x+width, pos.y+height, pos.z+depth), Vector3(pos.x,pos.y,pos.z+depth), Vector3(pos.x,pos.y+height,pos.z+depth), Vector3(pos.x+width,pos.y+height,pos.z+depth),
+                Vector3(pos.x,pos.y,pos.z), Vector3(pos.x,pos.y+height,pos.z), Vector3(pos.x,pos.y,pos.z+depth), Vector3(pos.x,pos.y,pos.z+depth), Vector3(pos.x, pos.y+height, pos.z+depth), Vector3(pos.x,pos.y+height,pos.z),
+                Vector3(pos.x+width,pos.y,pos.z), Vector3(pos.x+width,pos.y+height,pos.z), Vector3(pos.x+width,pos.y,pos.z+depth), Vector3(pos.x+width,pos.y,pos.z+depth), Vector3(pos.x+width, pos.y+height, pos.z+depth), Vector3(pos.x+width,pos.y+height,pos.z),
+                Vector3(pos.x,pos.y,pos.z), Vector3(pos.x+width, pos.y, pos.z), Vector3(pos.x+width, pos.y, pos.z+depth), Vector3(pos.x,pos.y,pos.z), Vector3(pos.x,pos.y,pos.z+depth), Vector3(pos.x+width,pos.y,pos.z+depth),
+                Vector3(pos.x,pos.y+height,pos.z), Vector3(pos.x+width, pos.y+height, pos.z), Vector3(pos.x+width, pos.y+height, pos.z+depth), Vector3(pos.x,pos.y+height,pos.z), Vector3(pos.x,pos.y+height,pos.z+depth), Vector3(pos.x+width,pos.y+height,pos.z+depth)
+            };
+            Object::verts = verts;
+        }
+
+        void move(const Vector3& moveVector){
+            Object::move(moveVector);
+        }
+        void rotate(const Vector3& rotationVector){
+            Object::rotate(rotationVector);
+        }
+
+};
+
+class Cube: public Rect{
+    public:
+        std::vector<SDL_Color> colors;
+        Vector3 pos;
+        int width;
+
+        Cube(Vector3 _pos, int _width, std::vector<SDL_Color> _colors): pos(_pos), width(_width), colors(_colors),
+        Rect(_pos, _width, _width, _width, _colors){}
+
+        void move(const Vector3& moveVector){
+            Rect::move(moveVector);
+        }
+        void rotate(const Vector3& rotationVector){
+            Rect::rotate(rotationVector);
+        }
+};
+
+class FPSCamera: public Camera{
+    public:
+        float speed, rotSpeed;
+
+        FPSCamera(Vector3 _pos, Vector3 _rot, float _speed, float _rotSpeed, float aspect_ratio = 16/9):
+        speed(_speed), rotSpeed(_rotSpeed), Camera(_pos, _rot, aspect_ratio){}
+
+        Vector3 fV(){Camera::fV();}
+        Vector3 rV(){Camera::rV();}
+        Vector3 uV(){Camera::uV();}
+        std::vector<std::vector<float>> transformationMatrix(){
+        Camera::transformationMatrix();}
+        Vector2 project(const Vector3& p, SDL_Window* window){Camera::project(p, window);}
+        bool tryCulling(std::vector<Vector3> triPoints, Vector3 triNormal){Camera::tryCulling(triPoints, triNormal);}
+
+        std::vector<float> bBox(Vector3 position){
+            return {pos.x - 1, pos.x + 1, pos.y - 1, pos.y + 1, pos.z - 1, pos.z + 1};
+        }
+
+        void update(Scene sc, Uint8* keyboardState){
+            Vector3 forward = fV()*speed;
+            Vector3 right = rV()*speed;
+            Vector3 up = uV()*speed;
+            if(keyboardState[SDL_SCANCODE_W]){
+                pos += forward;
+            }
+            if(keyboardState[SDL_SCANCODE_S]){pos = pos - forward;}
+            if(keyboardState[SDL_SCANCODE_A]){pos = pos + right;}
+            if(keyboardState[SDL_SCANCODE_D]){pos = pos - right;}
+            if(keyboardState[SDL_SCANCODE_UP]){rot.x = rot.x - rotSpeed;}
+            if(keyboardState[SDL_SCANCODE_DOWN]){rot.x = rot.x + rotSpeed;}
+            if(keyboardState[SDL_SCANCODE_LEFT]){rot.y = rot.y + rotSpeed;}
+            if(keyboardState[SDL_SCANCODE_RIGHT]){rot.y = rot.y - rotSpeed;}
+        }
 
 };
 
@@ -358,6 +473,11 @@ int main(int argc, char* argv[]){
 
     SDL_Event windowEvent;
 
+    FPSCamera cam(Vector3(0, 0, 0), Vector3(0, 0 ,0), 1, 0.03, WIDTH/HEIGHT);
+    Cube c1(Vector3(20, 0, 0), 10, {{255, 0, 0}, {255, 0, 0}, {0, 255, 0}, {0, 255, 0}, {0, 0, 255}, {0, 0, 255}});
+    Scene sc({c1});
+
+
     while(true){
         if(SDL_PollEvent(&windowEvent)){
             if(SDL_QUIT == windowEvent.type){break;}
@@ -366,6 +486,9 @@ int main(int argc, char* argv[]){
         SDL_Surface* surface = SDL_GetWindowSurface(window);
         Uint32 white = SDL_MapRGB(surface->format, 255, 255, 255);
         SDL_FillRect(surface, NULL, white);
+
+        sc.render(window, renderer, cam);
+
         SDL_UpdateWindowSurface(window);
     }
 
