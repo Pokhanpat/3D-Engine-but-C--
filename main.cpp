@@ -3,6 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <windows.h>
 
 const float PI = 3.141592653;
 const int WIDTH = 1600, HEIGHT = 900;
@@ -141,8 +142,8 @@ class Camera{
         Vector3 pos;
         Vector3 rot;
         float fov = PI * 0.5;
-        float near = 0.01;
-        float far = 1000;
+        float nearPlane = 0.01;
+        float farPlane = 1000;
         float aspect_ratio;
         std::vector<std::vector<float>> projectionMatrix = {{-0.0f}};
 
@@ -170,12 +171,12 @@ class Camera{
             };
 
             if (projectionMatrix.size() == 1){
-                float h = tan(fov / 2) * near;
+                float h = tan(fov / 2) * nearPlane;
                 float w = h * aspect_ratio;
                 projectionMatrix = {
-                    {2 * near / w, 0, 0, 0},
-                    {0, 2 * near / h, 0, 0},
-                    {0, 0, -1*(far + near) / (far - near), -2 * far * near / (far - near)},
+                    {2 * nearPlane / w, 0, 0, 0},
+                    {0, 2 * nearPlane / h, 0, 0},
+                    {0, 0, -1*(farPlane + nearPlane) / (farPlane - nearPlane), -2 * farPlane * nearPlane / (farPlane - nearPlane)},
                     {0, 0, -1, 0}
                 };
             }
@@ -251,6 +252,7 @@ class Object{
 
         Object(std::vector<Vector3> _verts, std::vector<SDL_Color> _triColors) : verts(_verts), triColors(_triColors){
             createTris();
+            std::cout<< 'a';
             checkNormals();
         }
 
@@ -411,7 +413,7 @@ class Cube: public Rect{
         std::vector<SDL_Color> colors;
         Vector3 pos;
         int width;
-
+        
         Cube(Vector3 _pos, int _width, std::vector<SDL_Color> _colors): pos(_pos), width(_width), colors(_colors),
         Rect(_pos, _width, _width, _width, _colors){}
 
@@ -442,7 +444,7 @@ class FPSCamera: public Camera{
             return {pos.x - 1, pos.x + 1, pos.y - 1, pos.y + 1, pos.z - 1, pos.z + 1};
         }
 
-        void update(Scene sc, Uint8* keyboardState){
+        void update(Scene sc, const Uint8* keyboardState){
             Vector3 forward = fV()*speed;
             Vector3 right = rV()*speed;
             Vector3 up = uV()*speed;
@@ -461,33 +463,38 @@ class FPSCamera: public Camera{
 };
 
 int main(int argc, char* argv[]){
+
     SDL_Init(SDL_INIT_EVERYTHING);
     SDL_Window* window = SDL_CreateWindow("main", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH, HEIGHT, SDL_WINDOW_ALLOW_HIGHDPI);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
-
+    SDL_Color red;red.r = 255;red.g = 0;red.b = 0;
+    SDL_Color green;green.r = 0;red.g = 255;red.b = 0;
+    SDL_Color blue;blue.r = 0;red.g = 0;red.b = 255;
     if(NULL == window){
         std::cout << "Could not create window: " << SDL_GetError() << std::endl;
-        return 1;
     }
 
     SDL_Event windowEvent;
-
-    FPSCamera cam(Vector3(0, 0, 0), Vector3(0, 0 ,0), 1, 0.03, WIDTH/HEIGHT);
-    Cube c1(Vector3(20, 0, 0), 10, {{255, 0, 0}, {255, 0, 0}, {0, 255, 0}, {0, 255, 0}, {0, 0, 255}, {0, 0, 255}});
+    
+    FPSCamera cam(Vector3(0, 0, 0), Vector3(0, 0, 0), 1, 0.5, WIDTH/HEIGHT);
+    Cube c1(Vector3(20, 0, 0), 10, {red, red, green, green, blue, blue});
     Scene sc({c1});
 
+    const Uint8* keyboardState;
 
     while(true){
         if(SDL_PollEvent(&windowEvent)){
             if(SDL_QUIT == windowEvent.type){break;}
         }
+        keyboardState = SDL_GetKeyboardState(NULL);
 
         SDL_Surface* surface = SDL_GetWindowSurface(window);
         Uint32 white = SDL_MapRGB(surface->format, 255, 255, 255);
         SDL_FillRect(surface, NULL, white);
 
         sc.render(window, renderer, cam);
+        cam.update(sc, keyboardState);
 
         SDL_UpdateWindowSurface(window);
     }
